@@ -29,13 +29,13 @@ import {v4 as uuidv4} from 'uuid';
 export const imageConversion  = async(req,res)=>{
     try {
         const {format,width,height}  = req.body;
-        console.log(format);
         const imageFormat = format.toLowerCase();
                 
         if(!req.file){
             return res.status(505).json({message:"No image file provided"});
         }
 
+        // custom Name for your download file and adding unique suffix through uuidv4 to avoid conflict        
         const filenameWithoutExt = path.parse(req.file.originalname).name;
         const uniqueSuffix = uuidv4();
         const downloadFileName = `${filenameWithoutExt}-${uniqueSuffix}_woben`;
