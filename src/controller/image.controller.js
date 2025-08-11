@@ -6,6 +6,7 @@ import cloudinary from '../lib/cloudinary.js';
 import stramifier from 'streamifier';
 import { Readable } from 'stream';
 import { deleteImageQueue } from '../lib/queue.js';
+import {v4 as uuidv4} from 'uuid';
 
 
 // // Ye tab use karna hain jab hume file ko disk pe store karna ho
@@ -23,22 +24,28 @@ import { deleteImageQueue } from '../lib/queue.js';
 //     }
 // }
 
+
+
 export const imageConversion  = async(req,res)=>{
     try {
         const {format,width,height}  = req.body;
         console.log(format);
         const imageFormat = format.toLowerCase();
-        // const imagePath = `src/uploads/${filename}`;
-        // const filenameWithoutExt = path.parse(filename).name;
-        // const outputPath = `src/converted/${filenameWithoutExt}.${imageFormat}`;
-        
+                
         if(!req.file){
             return res.status(505).json({message:"No image file provided"});
         }
+
+        const filenameWithoutExt = path.parse(req.file.originalname).name;
+        const uniqueSuffix = uuidv4();
+        const downloadFileName = `${filenameWithoutExt}-${uniqueSuffix}_woben`;
+
+
+        //accesing image path from memory
         const imagePath = req.file.buffer;
       
         
-
+        //resize-ot-foramt image through Sharp
         const resizeOption = {
             fit:"inside"
         }
@@ -50,10 +57,12 @@ export const imageConversion  = async(req,res)=>{
         .toFormat(imageFormat)
         .toBuffer();
         
+        //uploading converted-image to cloudinary 
         const result = await new Promise((resolve,rejects) =>{
             const uploadImage = cloudinary.uploader.upload_stream({
             resource_type:"image",
-            folder:"converted-image"
+            folder:"converted-image",
+            public_id:downloadFileName
             },
             (err,result)=>{
                 if(err) return rejects(err)
@@ -62,10 +71,16 @@ export const imageConversion  = async(req,res)=>{
         );
         Readable.from(convertedImage).pipe(uploadImage);
         })
+
+        const downloadPath = result.secure_url.replace(
+         "/upload/",
+         `/upload/fl_attachment:${downloadFileName}/`
+        )
         
+        // deleteing image from cloudinary through BUllMq
         await deleteImageQueue.add('deleteImage',{public_id:result.public_id},{delay:60000});
 
-        res.status(200).json({messgae:"image converted Successfully",downloadPath:result.secure_url});
+        res.status(200).json({messgae:"image converted Successfully",downloadPath:downloadPath});
     } catch (error) {
         console.log("error in imageConversion Controller",error);
         res.status(500).json({messgae:"Internal server error"});
